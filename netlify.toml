@@ -1,0 +1,14 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  # Firebase Web SDK apiKey (AIza...) in firebase-applet-config.json is a public client identifier
+  # secured by Firestore Security Rules and Firebase Auth, not a private secret.
+  SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
+  SECRETS_SCAN_OMIT_PATHS = "firebase-applet-config.json,dist/**"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
