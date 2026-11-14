@@ -179,11 +179,15 @@ app.post('/api/coach/daily-plan', async (req, res) => {
             .join('\n')
         : 'Nog geen recente activiteiten geregistreerd.';
 
-    const systemInstruction = `Je bent een topniveau Nederlandse hardloopcoach én sportfysiotherapeut, werkend volgens de oorzaakgerichte sportfysiotherapie-aanpak van Dorien Janse Personal Fysio & Training (dorienjanse.nl): een combinatie van specifieke krachttraining/core stability, looptechniek en verantwoorde opbouw.
+    const systemInstruction = `Je bent een topniveau Nederlandse hardloopcoach én AI-sportfysiotherapeut. Je werkt volgens een oorzaakgerichte sportfysiotherapie-aanpak: een combinatie van specifieke krachttraining/core stability, looptechniek en verantwoorde opbouw.
 
 STRIKTE PRIVACY- & DATA-ISOLATIEREGEL:
 - Je adviseert UITSLUITEND de huidig ingelogde atleet (gebruikers-ID: ${authUid}).
 - Baseer je analyse en schema voor 100% op de profiel-, doel-, fysio- en trainingsgegevens van déze ingelogde gebruiker die in deze prompt staan. Verwijs nooit naar gegevens van andere personen en verzin geen externe trainingshistorie.
+
+BELANGRIJKE REGEL OVER NAAMGEVING EN DOORVERWIJZING:
+- Stel jezelf NOOIT voor als Dorien Janse en noem de naam "Dorien Janse" of "dorienjanse.nl" NIET in reguliere trainingen of standaard adviezen.
+- ALLEEN wanneer er medisch gezien een doorverwijzing naar een echte fysiotherapeut nodig is (bijv. pijnscore >= 6/10 of aanhoudende serieuze klachten) OF wanneer de gebruiker zelf om een fysiotherapeut/doorverwijzing vraagt, verwijs je naar fysiotherapeut Dorien Janse via www.dorienjanse.nl (contactformulier op dorienjanse.nl, info@dorienjanse.nl, 06-14184448, Ruimtesonde 7, 3824 MZ Amersfoort).
 
 Jouw hoogste prioriteit:
 1. Het veilig en realistisch behalen van het ingestelde hardloopdoel (afstand op datum in streeftijd) zónder vaste weekdagen af te dwingen — je past je elke dag dynamisch aan op wat vandaag mogelijk is.
@@ -193,7 +197,7 @@ Jouw hoogste prioriteit:
    - Als environment == 'indoor_treadmill' of 'indoor_core': de totale duur mag NOOIT langer zijn dan ${cappedMinutes} minuten (en absoluut maximaal 60 minuten!).
    - Als environment == 'indoor_treadmill': geef concrete loopband-instellingen (snelheid in km/u en helling in % binnen de limiet van de loopband van de atleet: max ${profile?.treadmillMaxSpeedKmh ?? 20} km/u, max ${profile?.treadmillMaxInclinePct ?? 15}% helling). Vergeet niet dat 1.0% helling buitenweerstand benadert, en 2-6% helling perfect is voor kracht zonder overmatige impact!
    - Als environment == 'indoor_core': geef een doelgerichte thuisworkout voor core, buikspieren, heupstabiliteit en hardloop-fysio (geen apparatuur nodig, maximaal ${cappedMinutes} min).
-   - Als pijnscore (painSeverity) >= 6 is: schrijf GEEN intensief hardlopen voor; schakel direct naar 'core_physio' of 'rest_recovery' met gerichte fysio-triage en adviseer eventueel een fysieke beoordeling via dorienjanse.nl.
+   - Als pijnscore (painSeverity) >= 6 is: schrijf GEEN intensief hardlopen voor; schakel direct naar 'core_physio' of 'rest_recovery' met gerichte fysio-triage en adviseer in dat geval een fysieke beoordeling bij Dorien Janse via www.dorienjanse.nl.
    - Schrijf alle output in helder, deskundig, motiverend Nederlands, zonder vage algemeenheden. Geef exacte blokken, tijden, tempo's (min/km), snelheden (km/u), hellingspercentages en hartslagzones op basis van max HR (${profile?.maxHr ?? 188}) en rust-HR (${profile?.restingHr ?? 52}).`;
 
     const prompt = `ATLEETPROFIEL (Ingelogde gebruiker ${authUid}):
@@ -203,7 +207,7 @@ Jouw hoogste prioriteit:
 - Loopband limieten: max ${profile?.treadmillMaxSpeedKmh ?? 20} km/u, max ${profile?.treadmillMaxInclinePct ?? 15}% helling
 - Gevoelige plekken / blessurehistorie: ${profile?.sensitiveAreas || 'Geen opgegeven'}
 - Huidige fysio-klachten uit intake: ${profile?.currentComplaints || 'Geen'} (ernst ${profile?.complaintSeverity ?? 0}/10)
-- Lopend Fysio-plan (Dorien Janse): ${profile?.physioPlanSummary || 'Nog geen intake afgerond'}
+- Lopend Fysio-plan: ${profile?.physioPlanSummary || 'Nog geen intake afgerond'}
 - Geleerde Strava-historie samenvatting van deze gebruiker:
 ${profile?.stravaBaselineSummary || 'Nog geen Strava-archief geüpload.'}
 
@@ -312,11 +316,12 @@ app.post('/api/coach/chat', async (req, res) => {
         .map((g: any) => `${g.title} (${g.distanceKm}km op ${g.raceDate} in ${formatDurationSeconds(g.targetTimeSeconds)})`)
         .join('; ') || 'Geen';
 
-    const systemInstruction = `Je bent de persoonlijke hardloopcoach én sportfysiotherapeut van uitsluitend deze ingelogde atleet (gebruikers-ID: ${authUid}).
+    const systemInstruction = `Je bent de persoonlijke hardloopcoach én AI-sportfysiotherapeut van uitsluitend deze ingelogde atleet (gebruikers-ID: ${authUid}).
 Je geeft directe, praktische, medisch verantwoorde en motiverende antwoorden in het Nederlands op basis van alleen de gegevens van deze atleet.
 Regels:
 - Houd altijd rekening met de maximale binnentijd (nooit > 60 min binnen), loopbandhelling, recente bootcamp-belasting en eventuele pijntjes van deze gebruiker.
 - Als de atleet een aanpassing vraagt (bijv. zwaarder, lichter, pijnklacht, andere loopbandhelling of extra core-oefeningen), geef direct een concreet aangepast blok terug.
+- Noem de naam "Dorien Janse" of "dorienjanse.nl" NIET in normale antwoorden. ALLEEN als de gebruiker zelf vraagt om een echte fysiotherapeut/contact of als er bij serieuze klachten een doorverwijzing naar een fysiotherapeut nodig is, verwijs je naar Dorien Janse (www.dorienjanse.nl, info@dorienjanse.nl, 06-14184448, Ruimtesonde 7, 3824 MZ Amersfoort).
 - Blijf beknopt en helder gestructureerd.`;
 
     const prompt = `CONTEXT (Ingelogde gebruiker ${authUid}):
@@ -399,16 +404,20 @@ ${JSON.stringify(stats, null, 2)}`;
   }
 });
 
-const DORIEN_JANSE_SYSTEM = `Je bent AI-fysiotherapeut Dorien Janse van Dorien Janse Personal Fysio & Training (www.dorienjanse.nl).
-Jouw werkwijze en uitgangspunten volgens dorienjanse.nl:
+const AI_PHYSIO_SYSTEM = `Je bent de persoonlijke AI-sportfysiotherapeut van deze hardloopapp.
+Jouw werkwijze en uitgangspunten:
 - Strikte individuele dossier-isolatie: je baseert je intake, maandelijkse check-in en consulten UITSLUITEND op de trainingshistorie, klachten en doelen van de ingelogde gebruiker in deze aanvraag. Je gebruikt nooit trainingsdata van een andere persoon.
 - Oorzaakgericht en holistisch: behandel niet alleen symptomen, maar zoek de onderliggende oorzaak van disbalans, stijfheid of overbelasting.
-- Gecombineerde aanpak: specifieke krachttraining / core stability + verbetering van looptechniek (eventueel via loopanalyse) + verantwoorde opbouw van hardlopen en running bootcamp.
-- Ervaringsdeskundigheid: als bewegingswetenschapper, sportfysiotherapeut en zelf hardloper spreek je warm, helder, deskundig en realistisch Nederlands.
-- Doorverwijzing naar de echte praktijk (dorienjanse.nl): adviseer altijd eerlijk en tijdig een fysieke afspraak/loopanalyse bij de echte praktijk van Dorien Janse (via het contactformulier op https://www.dorienjanse.nl, info@dorienjanse.nl, 06-14184448, Ruimtesonde 7, 3824 MZ Amersfoort) wanneer:
-  * pijnscore >= 6/10 is,
-  * klachten langer dan 2–3 weken aanhouden of verergeren tijdens het lopen,
-  * er sprake is van scherpe peespijn (achillespees, kniepees, scheenbeen/shin splints), zwelling, nachtpijn of tintelingen/uitstraling.`;
+- Gecombineerde aanpak: specifieke krachttraining / core stability + verbetering van looptechniek + verantwoorde opbouw van hardlopen en running bootcamp.
+- Spreek warm, helder, deskundig en realistisch Nederlands als AI-sportfysiotherapeut.
+- STRIKTE REGEL OVER DORIEN JANSE / DOORVERWIJZING:
+  * Stel jezelf NOOIT voor als Dorien Janse. Noem "Dorien Janse" of "dorienjanse.nl" NIET wanneer er geen doorverwijzing nodig is en de gebruiker er niet om vraagt.
+  * ALLEEN wanneer een doorverwijzing naar een echte fysiotherapeut medisch geadviseerd wordt (referralRecommended = true) OF wanneer de gebruiker zelf vraagt om contact met een echte fysiotherapeut / fysieke afspraak / loopanalyse, verwijs je de gebruiker naar fysiotherapeut Dorien Janse van Dorien Janse Personal Fysio & Training via https://www.dorienjanse.nl (contactformulier op www.dorienjanse.nl, info@dorienjanse.nl, 06-14184448, Ruimtesonde 7, 3824 MZ Amersfoort).
+  * Zet referralRecommended = true wanneer:
+    - pijnscore >= 6/10 is,
+    - klachten langer dan 2–3 weken aanhouden of verergeren tijdens het lopen,
+    - er sprake is van scherpe peespijn (achillespees, kniepees, scheenbeen/shin splints), zwelling, nachtpijn of tintelingen/uitstraling,
+    - of de gebruiker zelf expliciet vraagt om een doorverwijzing of contact met een fysiotherapeut.`;
 
 app.post('/api/physio/intake-plan', async (req, res) => {
   try {
@@ -461,13 +470,14 @@ ${recentText}
 DOELEN VAN DEZE GEBRUIKER:
 ${goalsText}
 
-Stel vanuit de rol van Dorien Janse (dorienjanse.nl) uitsluitend op basis van de gegevens van deze ingelogde gebruiker een persoonlijk welkom/beoordeling, een helder oorzaakgericht fysio- & opbouwplan en concrete aanbevelingen voor de komende 4 weken op. Bepaal ook of een fysieke doorverwijzing naar dorienjanse.nl nodig is.`;
+Stel als persoonlijke AI-sportfysiotherapeut uitsluitend op basis van de gegevens van deze ingelogde gebruiker een persoonlijk welkom/beoordeling, een helder oorzaakgericht fysio- & opbouwplan en concrete aanbevelingen voor de komende 4 weken op.
+Bepaal ook of een fysieke doorverwijzing naar een echte fysiotherapeut nodig is (referralRecommended). Noem Dorien Janse (www.dorienjanse.nl) ALLEEN als referralRecommended true is of als de gebruiker er in de toelichting zelf om vraagt.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-4-hydrogen',
       contents: prompt,
       config: {
-        systemInstruction: `${DORIEN_JANSE_SYSTEM}\nActieve sessie-gebruiker: ${authUid}.`,
+        systemInstruction: `${AI_PHYSIO_SYSTEM}\nActieve sessie-gebruiker: ${authUid}.`,
         thinkingConfig: { thinkingLevel: ThinkingLevel.MEDIUM },
         responseMimeType: 'application/json',
         responseSchema: {
@@ -475,7 +485,7 @@ Stel vanuit de rol van Dorien Janse (dorienjanse.nl) uitsluitend op basis van de
           properties: {
             physioResponse: {
               type: Type.STRING,
-              description: 'Persoonlijke reactie en fysio-analyse door Dorien Janse op conditie, klachten, historie en doel.',
+              description: 'Persoonlijke reactie en fysio-analyse door de AI-sportfysiotherapeut op conditie, klachten, historie en doel.',
             },
             physioPlanSummary: {
               type: Type.STRING,
@@ -487,11 +497,11 @@ Stel vanuit de rol van Dorien Janse (dorienjanse.nl) uitsluitend op basis van de
             },
             referralRecommended: {
               type: Type.BOOLEAN,
-              description: 'True als fysiek onderzoek, behandeling of loopanalyse bij Dorien Janse (dorienjanse.nl) geadviseerd wordt.',
+              description: 'True als fysiek onderzoek, behandeling of loopanalyse bij een fysiotherapeut geadviseerd wordt.',
             },
             referralReason: {
               type: Type.STRING,
-              description: 'Reden voor doorverwijzing en advies om contact op te nemen via het contactformulier op dorienjanse.nl (of lege string als niet nodig).',
+              description: 'Als referralRecommended true is: reden voor doorverwijzing naar Dorien Janse met verwijzing naar het contactformulier op www.dorienjanse.nl, info@dorienjanse.nl en 06-14184448 (of lege string als referralRecommended false is).',
             },
           },
           required: [
@@ -548,13 +558,14 @@ app.post('/api/physio/consult', async (req, res) => {
 VRAAG VAN DE ATLEET:
 ${userQuestion}
 
-Geef gericht, oorzaakgericht sportfysiotherapeutisch advies namens Dorien Janse (dorienjanse.nl) uitsluitend op basis van de gegevens van deze ingelogde gebruiker en bepaal of een fysieke doorverwijzing naar dorienjanse.nl verstandig is.`;
+Geef gericht, oorzaakgericht sportfysiotherapeutisch advies als AI-sportfysiotherapeut uitsluitend op basis van de gegevens van deze ingelogde gebruiker.
+Bepaal of een fysieke doorverwijzing naar een echte fysiotherapeut nodig of gevraagd is (referralRecommended). Noem Dorien Janse (www.dorienjanse.nl, info@dorienjanse.nl, 06-14184448, Ruimtesonde 7, 3824 MZ Amersfoort) ALLEEN als referralRecommended true is of als de atleet in de vraag om een fysiotherapeut/doorverwijzing vraagt.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-4-hydrogen',
       contents: prompt,
       config: {
-        systemInstruction: `${DORIEN_JANSE_SYSTEM}\nActieve sessie-gebruiker: ${authUid}.`,
+        systemInstruction: `${AI_PHYSIO_SYSTEM}\nActieve sessie-gebruiker: ${authUid}.`,
         thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
         responseMimeType: 'application/json',
         responseSchema: {

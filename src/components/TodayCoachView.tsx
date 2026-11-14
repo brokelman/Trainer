@@ -672,7 +672,7 @@ export function TodayCoachView({
                     onClick={() => onNavigate('physio')}
                     className="text-xs font-medium text-emerald-700 hover:text-emerald-800 underline underline-offset-4 whitespace-nowrap"
                   >
-                    Schakel AI-Fysio Dorien Janse (dorienjanse.nl) in
+                    Schakel de AI-Fysiotherapeut in voor advies
                   </button>
                 </div>
               </div>

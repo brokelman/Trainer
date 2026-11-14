@@ -83,6 +83,11 @@ export function PhysioDorienView({
   const [consultComplaints, setConsultComplaints] = useState('');
   const [consultSeverity, setConsultSeverity] = useState(0);
   const [submittingConsult, setSubmittingConsult] = useState(false);
+  const [userRequestedPhysioReferral, setUserRequestedPhysioReferral] = useState(false);
+
+  const hasReferralRecommendation =
+    Boolean(profile?.referralRecommended) || consults.some((c) => Boolean(c.referralRecommended));
+  const showPhysioPracticeReferral = hasReferralRecommendation || userRequestedPhysioReferral;
 
   useEffect(() => {
     if (profile) {
@@ -215,7 +220,7 @@ export function PhysioDorienView({
           sensitiveAreas: profile?.sensitiveAreas || '',
           physioPlanSummary: profile?.physioPlanSummary || '',
           referralRecommended: true,
-          referralReason: data.referralReason || 'Fysiek onderzoek bij Dorien Janse geadviseerd.',
+          referralReason: data.referralReason || 'Fysiek onderzoek bij een sportfysiotherapeut geadviseerd.',
           lastPhysioCheckinAt: profile?.lastPhysioCheckinAt || today,
         });
       }
@@ -232,22 +237,22 @@ export function PhysioDorienView({
 
   return (
     <div className="space-y-6">
-      {/* Welcome Header by Dorien Janse */}
+      {/* Neutral AI Physiotherapist Welcome Header */}
       <div className="bg-white border border-slate-200 rounded-xl p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
         <div className="space-y-2 max-w-3xl">
           <p className="text-xs font-medium text-emerald-700 flex items-center gap-1.5">
             <Stethoscope className="w-3.5 h-3.5" />
-            AI Sportfysiotherapeut · Gebaseerd op dorienjanse.nl
+            Persoonlijke AI Sportfysiotherapeut
           </p>
           <h2 className="text-2xl font-semibold text-slate-900 text-balance">
             {profile?.intakeCompleted
-              ? `Welkom terug ${profile.displayName}, ik ben Dorien Janse (AI Fysio)`
-              : `Welkom ${profile?.displayName || ''}, ik ben fysiotherapeut Dorien Janse`}
+              ? `Welkom terug ${profile.displayName}, jouw AI-fysiotherapeut staat klaar`
+              : `Welkom ${profile?.displayName || ''}, start hier jouw fysio-intake`}
           </h2>
           <p className="text-sm text-slate-600 leading-relaxed">
             {profile?.intakeCompleted
-              ? 'Op basis van de oorzaakgerichte sportfysiotherapie van dorienjanse.nl (specifieke kracht, core stability, looptechniek en verantwoorde opbouw) bewaak ik jouw belastbaarheid, voer ik maandelijks een check-in uit en geef ik advies op aanvraag.'
-              : 'Fijn dat je er bent! Laten we eerst een korte fysio-intake doen om je huidige conditie, eventuele klachten en hardloopdoelen in kaart te brengen. Upload gerust ook je Strava- of Garmin-historie zodat ik direct een passend plan kan opstellen.'}
+              ? 'Op basis van oorzaakgerichte sportfysiotherapie (specifieke kracht, core stability, looptechniek en verantwoorde opbouw) bewaakt de AI-fysio jouw belastbaarheid, voert maandelijks een check-in uit en geeft direct advies bij klachten.'
+              : 'Fijn dat je er bent! Laten we eerst een korte fysio-intake doen om je huidige conditie, eventuele klachten en hardloopdoelen in kaart te brengen. Upload gerust ook je Strava- of Garmin-historie zodat de AI-fysio direct een passend plan kan opstellen.'}
           </p>
         </div>
 
@@ -262,37 +267,43 @@ export function PhysioDorienView({
               {showIntakeOrMonthlyForm ? 'Sluit check-in formulier' : 'Maandelijkse check-in starten'}
             </button>
           )}
-          <a
-            href="https://www.dorienjanse.nl"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={() => setUserRequestedPhysioReferral((v) => !v)}
             className="px-4 py-2 text-xs font-medium bg-[#0F172A] hover:bg-slate-800 text-white rounded-lg flex items-center gap-1.5 whitespace-nowrap shrink-0"
           >
-            Contact via dorienjanse.nl
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
+            {userRequestedPhysioReferral ? 'Verberg doorverwijzing' : 'Doorverwijzing naar fysio aanvragen'}
+          </button>
         </div>
       </div>
 
-      {/* Referral Alert Banner if recommended */}
-      {profile?.referralRecommended && (
+      {/* Referral Alert Banner: ONLY shown when AI recommends referral or user explicitly requests a real physiotherapist */}
+      {showPhysioPracticeReferral && (
         <div
           role="alert"
           className="bg-red-50 border border-red-200 rounded-xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 text-red-950"
         >
           <div className="flex items-start gap-3.5">
             <ShieldAlert className="w-5 h-5 text-red-700 shrink-0 mt-0.5" />
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <h3 className="text-base font-semibold">
-                Doorverwijzing geadviseerd naar de praktijk van Dorien Janse
+                Doorverwijzing naar fysiotherapeut: Dorien Janse Personal Fysio &amp; Training
               </h3>
               <p className="text-sm text-red-900 leading-relaxed">
-                {profile.referralReason ||
-                  'Op basis van je klachtenpatroon of pijnscore adviseert de AI-fysio een persoonlijk onderzoek of loopanalyse.'}
+                {profile?.referralReason ||
+                  'Voor een fysieke beoordeling, loopanalyse of persoonlijke behandeling verwijzen wij naar sportfysiotherapeut Dorien Janse via dorienjanse.nl.'}
               </p>
-              <p className="text-xs font-mono text-red-800">
-                Contactformulier: www.dorienjanse.nl · E-mail: info@dorienjanse.nl · Tel: 06-14184448
-              </p>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-mono text-red-800 pt-1">
+                <span className="flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5" /> Ruimtesonde 7, 3824 MZ Amersfoort
+                </span>
+                <a href="tel:0614184448" className="flex items-center gap-1 hover:underline">
+                  <Phone className="w-3.5 h-3.5" /> 06-14184448
+                </a>
+                <a href="mailto:info@dorienjanse.nl" className="flex items-center gap-1 hover:underline">
+                  <Mail className="w-3.5 h-3.5" /> info@dorienjanse.nl
+                </a>
+              </div>
             </div>
           </div>
 
@@ -302,7 +313,7 @@ export function PhysioDorienView({
             rel="noopener noreferrer"
             className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white text-xs font-medium rounded-lg flex items-center gap-1.5 whitespace-nowrap shrink-0 self-start lg:self-center"
           >
-            Afspraak maken op dorienjanse.nl
+            Contactformulier op dorienjanse.nl
             <ExternalLink className="w-3.5 h-3.5" />
           </a>
         </div>
@@ -321,7 +332,7 @@ export function PhysioDorienView({
                 {daysSinceCheckin !== null
                   ? `Je laatste check-in was ${daysSinceCheckin} dagen geleden.`
                   : 'Tijd voor een periodieke controle.'}{' '}
-                Dorien Janse evalueert je klachten, belasting en voortgang voor de komende maand.
+                De AI-fysiotherapeut evalueert je klachten, belasting en voortgang voor de komende maand.
               </p>
             </div>
           </div>
@@ -345,10 +356,10 @@ export function PhysioDorienView({
           <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <h3 className="text-lg font-semibold text-slate-900">
-                {profile?.intakeCompleted ? 'Maandelijkse Fysio Check-in — Dorien Janse' : 'Intakegesprek — Dorien Janse'}
+                {profile?.intakeCompleted ? 'Maandelijkse Fysio Check-in' : 'Fysiotherapeutische Intake'}
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Bepaal je huidige conditie, klachten en doelen. Daarna stelt Dorien Janse jouw persoonlijke plan op.
+                Bepaal je huidige conditie, klachten en doelen. Daarna stelt de AI-fysiotherapeut jouw persoonlijke plan op.
               </p>
             </div>
             <span className="text-xs font-mono tabular-nums text-slate-500">{today}</span>
@@ -437,7 +448,7 @@ export function PhysioDorienView({
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Extra toelichting voor Dorien Janse
+                  Extra toelichting voor de fysiotherapeut
                 </label>
                 <input
                   type="text"
@@ -463,7 +474,7 @@ export function PhysioDorienView({
                 </span>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Upload desgewenst nu (of later) je Strava-archief en Garmin-trainingen zodat Dorien Janse je echte
+                Upload desgewenst nu (of later) je Strava-archief en Garmin-trainingen zodat de AI-fysio je echte
                 trainingshistorie in het plan meeneemt.
               </p>
               <button
@@ -546,7 +557,7 @@ export function PhysioDorienView({
               className="px-5 py-2.5 bg-[#0F172A] hover:bg-slate-800 disabled:opacity-60 text-white text-sm font-medium rounded-lg whitespace-nowrap"
             >
               {submittingIntake
-                ? 'Dorien Janse stelt je fysio-plan op...'
+                ? 'AI-fysiotherapeut stelt je plan op...'
                 : profile?.intakeCompleted
                   ? 'Maandelijkse check-in afronden & plan bijwerken'
                   : 'Intake afronden & persoonlijk fysio-plan maken'}
@@ -562,7 +573,7 @@ export function PhysioDorienView({
           <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <h3 className="text-lg font-semibold text-slate-900">Jouw Dorien Janse Fysio- &amp; Opbouwplan</h3>
+                <h3 className="text-lg font-semibold text-slate-900">Jouw Persoonlijke Fysio- &amp; Opbouwplan</h3>
                 <p className="text-xs text-slate-500 mt-0.5 font-mono tabular-nums">
                   Laatste check-in: {profile?.lastPhysioCheckinAt || 'Nog niet uitgevoerd'} · Niveau:{' '}
                   {profile?.fitnessLevel || 'recreational'}
@@ -581,7 +592,7 @@ export function PhysioDorienView({
               </div>
             ) : (
               <p className="text-sm text-slate-500">
-                Rond hierboven eerst de fysio-intake af zodat Dorien Janse jouw persoonlijke opbouw- en
+                Rond hierboven eerst de fysio-intake af zodat de AI-fysiotherapeut jouw persoonlijke opbouw- en
                 blessurepreventieplan kan opstellen.
               </p>
             )}
@@ -625,16 +636,16 @@ export function PhysioDorienView({
           </div>
         </div>
 
-        {/* Right: On-Demand Consult + Dorien Janse Contact Card */}
+        {/* Right: On-Demand Consult (+ Conditional Referral Card only when recommended or requested) */}
         <div className="lg:col-span-5 space-y-6">
           <form onSubmit={handleOnDemandConsult} className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
             <div className="border-b border-slate-100 pb-3">
               <h3 className="text-base font-semibold text-slate-900 flex items-center gap-2">
                 <HeartHandshake className="w-4 h-4 text-emerald-700" />
-                Vraag AI-Fysio Dorien Janse om advies
+                Vraag de AI-Fysiotherapeut om advies
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Altijd op verzoek in te schakelen bij opkomende pijntjes, looptechniek of herstelvragen.
+                Altijd op verzoek in te schakelen bij opkomende pijntjes, looptechniek, herstelvragen of voor een doorverwijzing.
               </p>
             </div>
 
@@ -667,13 +678,13 @@ export function PhysioDorienView({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Jouw vraag aan Dorien Janse</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Jouw vraag aan de AI-Fysiotherapeut</label>
               <textarea
                 rows={4}
                 required
                 value={consultQuestion}
                 onChange={(e) => setConsultQuestion(e.target.value)}
-                placeholder="Bijv. Kan ik hiermee wel mijn duurloop doen, welke krachtoefening helpt, of is een fysieke check nodig?"
+                placeholder="Bijv. Kan ik hiermee wel mijn duurloop doen, welke krachtoefening helpt, of wil je me doorverwijzen naar een fysio?"
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"
               />
             </div>
@@ -684,53 +695,54 @@ export function PhysioDorienView({
               className="w-full py-2.5 px-4 bg-[#0F172A] hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2 whitespace-nowrap"
             >
               <Send className="w-4 h-4" />
-              {submittingConsult ? 'Dorien Janse analyseert...' : 'Vraag advies aan Dorien Janse'}
+              {submittingConsult ? 'AI-Fysiotherapeut analyseert...' : 'Vraag fysio-advies aan'}
             </button>
           </form>
 
-          {/* Official dorienjanse.nl Referral & Contact Card */}
-          <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
-            <div className="border-b border-slate-100 pb-3">
-              <p className="text-xs font-medium text-emerald-700">Praktijk voor Sportfysiotherapie &amp; Loopanalyse</p>
-              <h3 className="text-base font-semibold text-slate-900 mt-0.5">
-                Dorien Janse Personal Fysio &amp; Training
-              </h3>
+          {/* Referral Card ONLY shown when AI recommends a referral or when the user explicitly requests it */}
+          {showPhysioPracticeReferral && (
+            <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+              <div className="border-b border-slate-100 pb-3">
+                <p className="text-xs font-medium text-emerald-700">Geadviseerde Fysiotherapiepraktijk</p>
+                <h3 className="text-base font-semibold text-slate-900 mt-0.5">
+                  Dorien Janse Personal Fysio &amp; Training
+                </h3>
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Voor een fysieke beoordeling, loopanalyse of behandeling verwijzen we je graag door naar Dorien Janse via het contactformulier of onderstaande gegevens van dorienjanse.nl:
+              </p>
+
+              <div className="space-y-2.5 text-sm text-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <MapPin className="w-4 h-4 text-slate-500 shrink-0" />
+                  <span>Ruimtesonde 7, 3824 MZ Amersfoort</span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <Phone className="w-4 h-4 text-slate-500 shrink-0" />
+                  <a href="tel:0614184448" className="font-mono hover:underline">
+                    06-14184448
+                  </a>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <Mail className="w-4 h-4 text-slate-500 shrink-0" />
+                  <a href="mailto:info@dorienjanse.nl" className="hover:underline">
+                    info@dorienjanse.nl
+                  </a>
+                </div>
+              </div>
+
+              <a
+                href="https://www.dorienjanse.nl"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-2.5 px-4 border border-slate-300 hover:bg-slate-50 text-slate-900 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-colors whitespace-nowrap"
+              >
+                Open contactformulier op www.dorienjanse.nl
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
             </div>
-
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Blijven klachten aanhouden of adviseert de AI-fysio een fysieke beoordeling of loopanalyse? Neem direct
-              contact op met de praktijk via het online contactformulier op dorienjanse.nl:
-            </p>
-
-            <div className="space-y-2.5 text-sm text-slate-800">
-              <div className="flex items-center gap-2.5">
-                <MapPin className="w-4 h-4 text-slate-500 shrink-0" />
-                <span>Ruimtesonde 7, 3824 MZ Amersfoort</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <Phone className="w-4 h-4 text-slate-500 shrink-0" />
-                <a href="tel:0614184448" className="font-mono hover:underline">
-                  06-14184448
-                </a>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <Mail className="w-4 h-4 text-slate-500 shrink-0" />
-                <a href="mailto:info@dorienjanse.nl" className="hover:underline">
-                  info@dorienjanse.nl
-                </a>
-              </div>
-            </div>
-
-            <a
-              href="https://www.dorienjanse.nl"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-2.5 px-4 border border-slate-300 hover:bg-slate-50 text-slate-900 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-colors whitespace-nowrap"
-            >
-              Open contactformulier op www.dorienjanse.nl
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
-          </div>
+          )}
         </div>
       </div>
     </div>

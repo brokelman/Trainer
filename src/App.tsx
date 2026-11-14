@@ -24,7 +24,7 @@ type TabKey = 'today' | 'physio' | 'goals' | 'import' | 'load' | 'log';
 
 const NAV_ITEMS: Array<{ key: TabKey; label: string; icon: typeof CalendarCheck }> = [
   { key: 'today', label: 'Vandaag & Coach', icon: CalendarCheck },
-  { key: 'physio', label: 'Fysio (Dorien Janse)', icon: Stethoscope },
+  { key: 'physio', label: 'AI Fysio & Intake', icon: Stethoscope },
   { key: 'goals', label: 'Doelen & Profiel', icon: Flag },
   { key: 'import', label: 'Data & Import', icon: Database },
   { key: 'load', label: 'Belasting & Fysio', icon: Activity },
@@ -183,14 +183,14 @@ export default function App() {
 
           <div className="relative z-10 max-w-xl space-y-5 pt-16 lg:pt-0">
             <p className="text-xs font-mono tracking-wider uppercase text-emerald-400">
-              Adaptieve Hardloopbegeleiding · Sportfysiotherapie
+              Adaptieve Hardloopbegeleiding · AI Sportfysiotherapie
             </p>
             <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-white text-balance leading-[1.1]">
               Train slimmer voor jouw volgende doel.
             </h1>
             <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-lg">
-              Dynamische dagschema&apos;s die meebewegen met jouw agenda, belastbaarheid en herstel — begeleid door
-              sportfysiotherapeutische inzichten van Dorien Janse.
+              Dynamische dagschema&apos;s die meebewegen met jouw agenda, belastbaarheid en herstel — ondersteund door
+              een persoonlijke AI-sportfysiotherapeut en hardloopcoach.
             </p>
             <div className="grid grid-cols-3 gap-6 pt-4 border-t border-white/15 text-xs text-slate-300">
               <div>
@@ -217,7 +217,7 @@ export default function App() {
                 Start jouw training
               </h2>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Log in om direct met fysiotherapeut Dorien Janse je intake te starten en je persoonlijke schema op te
+                Log in om direct met je AI-fysiotherapeut je intake te starten en je persoonlijke trainingsschema op te
                 bouwen.
               </p>
             </div>
