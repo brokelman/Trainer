@@ -1,0 +1,6 @@
+{
+  "name": "BaarleRun Coach",
+  "description": "Dynamische hardloopcoach en fysio-assistent voor Baarle-doelen, met Strava-historie, Garmin-import en bootcamp-belastinganalyse.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

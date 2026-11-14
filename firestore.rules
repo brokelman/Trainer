@@ -1,0 +1,379 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reusable Hardened Primitives
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function hasValidParentUser(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId)) &&
+        get(/databases/$(database)/documents/users/$(userId)).data.userId == request.auth.uid;
+    }
+
+    function hasValidParentCheckIn(userId, checkinId) {
+      return exists(/databases/$(database)/documents/users/$(userId)/checkins/$(checkinId)) &&
+        get(/databases/$(database)/documents/users/$(userId)/checkins/$(checkinId)).data.userId == request.auth.uid;
+    }
+
+    // Entity Validation Blueprints
+    function isValidUserProfile(data) {
+      return data.keys().hasAll([
+          'userId', 'displayName', 'maxHr', 'restingHr',
+          'treadmillMaxSpeedKmh', 'treadmillMaxInclinePct',
+          'sensitiveAreas', 'stravaBaselineSummary',
+          'stravaImportedCount', 'stravaLastImportedAt',
+          'intakeCompleted', 'fitnessLevel', 'currentWeeklyKm',
+          'currentComplaints', 'complaintSeverity', 'physioPlanSummary',
+          'referralRecommended', 'referralReason', 'lastPhysioCheckinAt',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId', 'displayName', 'maxHr', 'restingHr',
+          'treadmillMaxSpeedKmh', 'treadmillMaxInclinePct',
+          'sensitiveAreas', 'stravaBaselineSummary',
+          'stravaImportedCount', 'stravaLastImportedAt',
+          'intakeCompleted', 'fitnessLevel', 'currentWeeklyKm',
+          'currentComplaints', 'complaintSeverity', 'physioPlanSummary',
+          'referralRecommended', 'referralReason', 'lastPhysioCheckinAt',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.userId is string && isValidId(data.userId) && data.userId == request.auth.uid &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120 &&
+        data.maxHr is number && data.maxHr >= 120 && data.maxHr <= 220 &&
+        data.restingHr is number && data.restingHr >= 30 && data.restingHr <= 110 &&
+        data.treadmillMaxSpeedKmh is number && data.treadmillMaxSpeedKmh >= 8 && data.treadmillMaxSpeedKmh <= 25 &&
+        data.treadmillMaxInclinePct is number && data.treadmillMaxInclinePct >= 0 && data.treadmillMaxInclinePct <= 30 &&
+        data.sensitiveAreas is string && data.sensitiveAreas.size() <= 500 &&
+        data.stravaBaselineSummary is string && data.stravaBaselineSummary.size() <= 4000 &&
+        data.stravaImportedCount is number && data.stravaImportedCount >= 0 && data.stravaImportedCount <= 50000 &&
+        data.stravaLastImportedAt is string && data.stravaLastImportedAt.size() <= 40 &&
+        data.intakeCompleted is bool &&
+        data.fitnessLevel is string && data.fitnessLevel in ['beginner', 'recreational', 'intermediate', 'advanced'] &&
+        data.currentWeeklyKm is number && data.currentWeeklyKm >= 0 && data.currentWeeklyKm <= 300 &&
+        data.currentComplaints is string && data.currentComplaints.size() <= 1000 &&
+        data.complaintSeverity is number && data.complaintSeverity >= 0 && data.complaintSeverity <= 10 &&
+        data.physioPlanSummary is string && data.physioPlanSummary.size() <= 4000 &&
+        data.referralRecommended is bool &&
+        data.referralReason is string && data.referralReason.size() <= 1000 &&
+        data.lastPhysioCheckinAt is string && data.lastPhysioCheckinAt.size() <= 40 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidGoal(data) {
+      return data.keys().hasAll([
+          'userId', 'title', 'location', 'distanceKm', 'raceDate',
+          'targetTimeSeconds', 'priority', 'status', 'notes',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId', 'title', 'location', 'distanceKm', 'raceDate',
+          'targetTimeSeconds', 'priority', 'status', 'notes',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.userId is string && isValidId(data.userId) && data.userId == request.auth.uid &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 140 &&
+        data.location is string && data.location.size() <= 120 &&
+        data.distanceKm is number && data.distanceKm >= 0.5 && data.distanceKm <= 250 &&
+        data.raceDate is string && data.raceDate.size() >= 8 && data.raceDate.size() <= 20 &&
+        data.targetTimeSeconds is number && data.targetTimeSeconds >= 60 && data.targetTimeSeconds <= 86400 &&
+        data.priority is string && data.priority in ['A', 'B'] &&
+        data.status is string && data.status in ['active', 'completed', 'archived'] &&
+        data.notes is string && data.notes.size() <= 1000 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidActivity(data) {
+      return data.keys().hasAll([
+          'userId', 'source', 'activityType', 'title', 'date',
+          'durationMinutes', 'distanceKm', 'avgPaceSecPerKm',
+          'avgHr', 'maxHr', 'elevationGainM', 'inclinePct',
+          'rpe', 'trainingLoad', 'bootcampFocus', 'sorenessNote',
+          'externalId', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId', 'source', 'activityType', 'title', 'date',
+          'durationMinutes', 'distanceKm', 'avgPaceSecPerKm',
+          'avgHr', 'maxHr', 'elevationGainM', 'inclinePct',
+          'rpe', 'trainingLoad', 'bootcampFocus', 'sorenessNote',
+          'externalId', 'createdAt'
+        ]) &&
+        data.userId is string && isValidId(data.userId) && data.userId == request.auth.uid &&
+        data.source is string && data.source in ['strava', 'garmin', 'bootcamp', 'manual', 'coach'] &&
+        data.activityType is string && data.activityType in ['run_outdoor', 'run_treadmill', 'bootcamp', 'core_physio', 'cross_train'] &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 180 &&
+        data.date is string && data.date.size() >= 8 && data.date.size() <= 40 &&
+        data.durationMinutes is number && data.durationMinutes >= 1 && data.durationMinutes <= 1440 &&
+        data.distanceKm is number && data.distanceKm >= 0 && data.distanceKm <= 300 &&
+        data.avgPaceSecPerKm is number && data.avgPaceSecPerKm >= 0 && data.avgPaceSecPerKm <= 1800 &&
+        data.avgHr is number && data.avgHr >= 0 && data.avgHr <= 230 &&
+        data.maxHr is number && data.maxHr >= 0 && data.maxHr <= 240 &&
+        data.elevationGainM is number && data.elevationGainM >= 0 && data.elevationGainM <= 10000 &&
+        data.inclinePct is number && data.inclinePct >= 0 && data.inclinePct <= 30 &&
+        data.rpe is number && data.rpe >= 1 && data.rpe <= 10 &&
+        data.trainingLoad is number && data.trainingLoad >= 0 && data.trainingLoad <= 2000 &&
+        data.bootcampFocus is string && data.bootcampFocus.size() <= 60 &&
+        data.sorenessNote is string && data.sorenessNote.size() <= 500 &&
+        data.externalId is string && data.externalId.size() <= 128 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidCheckIn(data) {
+      return data.keys().hasAll([
+          'userId', 'date', 'wantsToTrain', 'environment',
+          'availableMinutes', 'energyLevel', 'muscleSoreness',
+          'painArea', 'painSeverity', 'notes', 'coachPlanTitle',
+          'coachPlanType', 'coachReasoning', 'physioAdvice',
+          'workoutWarmup', 'workoutMain', 'workoutCooldown',
+          'treadmillSpeedKmh', 'treadmillInclinePct', 'targetHrZone',
+          'estimatedLoad', 'completed', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId', 'date', 'wantsToTrain', 'environment',
+          'availableMinutes', 'energyLevel', 'muscleSoreness',
+          'painArea', 'painSeverity', 'notes', 'coachPlanTitle',
+          'coachPlanType', 'coachReasoning', 'physioAdvice',
+          'workoutWarmup', 'workoutMain', 'workoutCooldown',
+          'treadmillSpeedKmh', 'treadmillInclinePct', 'targetHrZone',
+          'estimatedLoad', 'completed', 'createdAt', 'updatedAt'
+        ]) &&
+        data.userId is string && isValidId(data.userId) && data.userId == request.auth.uid &&
+        data.date is string && data.date.size() >= 8 && data.date.size() <= 20 &&
+        data.wantsToTrain is bool &&
+        data.environment is string && data.environment in ['outdoor', 'indoor_treadmill', 'indoor_core', 'rest'] &&
+        data.availableMinutes is number && data.availableMinutes >= 0 && data.availableMinutes <= 300 &&
+        (!(data.environment in ['indoor_treadmill', 'indoor_core']) || data.availableMinutes <= 60) &&
+        data.energyLevel is number && data.energyLevel >= 1 && data.energyLevel <= 5 &&
+        data.muscleSoreness is number && data.muscleSoreness >= 1 && data.muscleSoreness <= 5 &&
+        data.painArea is string && data.painArea.size() <= 140 &&
+        data.painSeverity is number && data.painSeverity >= 0 && data.painSeverity <= 10 &&
+        data.notes is string && data.notes.size() <= 600 &&
+        data.coachPlanTitle is string && data.coachPlanTitle.size() <= 180 &&
+        data.coachPlanType is string && data.coachPlanType in ['easy_run', 'tempo_run', 'intervals', 'long_run', 'treadmill_incline', 'core_physio', 'rest_recovery'] &&
+        data.coachReasoning is string && data.coachReasoning.size() <= 2500 &&
+        data.physioAdvice is string && data.physioAdvice.size() <= 2000 &&
+        data.workoutWarmup is string && data.workoutWarmup.size() <= 1500 &&
+        data.workoutMain is string && data.workoutMain.size() <= 2500 &&
+        data.workoutCooldown is string && data.workoutCooldown.size() <= 1500 &&
+        data.treadmillSpeedKmh is string && data.treadmillSpeedKmh.size() <= 80 &&
+        data.treadmillInclinePct is string && data.treadmillInclinePct.size() <= 80 &&
+        data.targetHrZone is string && data.targetHrZone.size() <= 80 &&
+        data.estimatedLoad is number && data.estimatedLoad >= 0 && data.estimatedLoad <= 500 &&
+        data.completed is bool &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCoachMessage(data) {
+      return data.keys().hasAll(['userId', 'role', 'text', 'createdAt']) &&
+        data.keys().hasOnly(['userId', 'role', 'text', 'createdAt']) &&
+        data.userId is string && isValidId(data.userId) && data.userId == request.auth.uid &&
+        data.role is string && data.role in ['user', 'coach'] &&
+        data.text is string && data.text.size() >= 1 && data.text.size() <= 3500 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidPhysioConsult(data) {
+      return data.keys().hasAll([
+          'userId', 'kind', 'date', 'complaintsSummary', 'painSeverity',
+          'userQuestion', 'physioResponse', 'planRecommendations',
+          'referralRecommended', 'referralReason', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId', 'kind', 'date', 'complaintsSummary', 'painSeverity',
+          'userQuestion', 'physioResponse', 'planRecommendations',
+          'referralRecommended', 'referralReason', 'createdAt'
+        ]) &&
+        data.userId is string && isValidId(data.userId) && data.userId == request.auth.uid &&
+        data.kind is string && data.kind in ['intake', 'monthly_checkin', 'ondemand_consult'] &&
+        data.date is string && data.date.size() >= 8 && data.date.size() <= 20 &&
+        data.complaintsSummary is string && data.complaintsSummary.size() <= 1000 &&
+        data.painSeverity is number && data.painSeverity >= 0 && data.painSeverity <= 10 &&
+        data.userQuestion is string && data.userQuestion.size() <= 2000 &&
+        data.physioResponse is string && data.physioResponse.size() >= 1 && data.physioResponse.size() <= 4000 &&
+        data.planRecommendations is string && data.planRecommendations.size() <= 3000 &&
+        data.referralRecommended is bool &&
+        data.referralReason is string && data.referralReason.size() <= 1000 &&
+        data.createdAt is timestamp;
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+      allow create: if isValidId(userId) &&
+        isOwner(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(userId) &&
+        isOwner(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName', 'maxHr', 'restingHr',
+            'treadmillMaxSpeedKmh', 'treadmillMaxInclinePct',
+            'sensitiveAreas', 'updatedAt'
+          ]) ||
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'stravaBaselineSummary', 'stravaImportedCount',
+            'stravaLastImportedAt', 'updatedAt'
+          ]) ||
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'intakeCompleted', 'fitnessLevel', 'currentWeeklyKm',
+            'currentComplaints', 'complaintSeverity', 'sensitiveAreas',
+            'physioPlanSummary', 'referralRecommended', 'referralReason',
+            'lastPhysioCheckinAt', 'updatedAt'
+          ])
+        );
+      allow delete: if false;
+
+      // Running Goals Subcollection
+      match /goals/{goalId} {
+        allow get: if isValidId(userId) && isValidId(goalId) && isOwner(userId) && hasValidParentUser(userId);
+        allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+        allow create: if isValidId(userId) && isValidId(goalId) &&
+          isOwner(userId) &&
+          isValidGoal(incoming()) &&
+          hasValidParentUser(userId) &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time;
+        allow update: if isValidId(userId) && isValidId(goalId) &&
+          isOwner(userId) &&
+          isValidGoal(incoming()) &&
+          hasValidParentUser(userId) &&
+          existing().status != 'archived' &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time && (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'location', 'distanceKm', 'raceDate',
+              'targetTimeSeconds', 'priority', 'notes', 'updatedAt'
+            ]) ||
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'updatedAt'
+            ])
+          );
+        allow delete: if isValidId(userId) && isValidId(goalId) &&
+          isOwner(userId) &&
+          hasValidParentUser(userId);
+      }
+
+      // Training Activities Subcollection (Strava, Garmin, Bootcamp, Core)
+      match /activities/{activityId} {
+        allow get: if isValidId(userId) && isValidId(activityId) && isOwner(userId) && hasValidParentUser(userId);
+        allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+        allow create: if isValidId(userId) && isValidId(activityId) &&
+          isOwner(userId) &&
+          isValidActivity(incoming()) &&
+          hasValidParentUser(userId) &&
+          incoming().createdAt == request.time;
+        allow update: if isValidId(userId) && isValidId(activityId) &&
+          isOwner(userId) &&
+          isValidActivity(incoming()) &&
+          hasValidParentUser(userId) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'title', 'rpe', 'trainingLoad', 'bootcampFocus', 'sorenessNote'
+          ]);
+        allow delete: if isValidId(userId) && isValidId(activityId) &&
+          isOwner(userId) &&
+          hasValidParentUser(userId);
+      }
+
+      // Daily Check-ins & Coach Prescriptions Subcollection
+      match /checkins/{checkinId} {
+        allow get: if isValidId(userId) && isValidId(checkinId) && isOwner(userId) && hasValidParentUser(userId);
+        allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+        allow create: if isValidId(userId) && isValidId(checkinId) &&
+          isOwner(userId) &&
+          isValidCheckIn(incoming()) &&
+          hasValidParentUser(userId) &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time;
+        allow update: if isValidId(userId) && isValidId(checkinId) &&
+          isOwner(userId) &&
+          isValidCheckIn(incoming()) &&
+          hasValidParentUser(userId) &&
+          existing().completed == false &&
+          incoming().userId == existing().userId &&
+          incoming().date == existing().date &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time && (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'wantsToTrain', 'environment', 'availableMinutes',
+              'energyLevel', 'muscleSoreness', 'painArea',
+              'painSeverity', 'notes', 'coachPlanTitle', 'coachPlanType',
+              'coachReasoning', 'physioAdvice', 'workoutWarmup',
+              'workoutMain', 'workoutCooldown', 'treadmillSpeedKmh',
+              'treadmillInclinePct', 'targetHrZone', 'estimatedLoad',
+              'updatedAt'
+            ]) ||
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'completed', 'updatedAt'
+            ])
+          );
+        allow delete: if isValidId(userId) && isValidId(checkinId) &&
+          isOwner(userId) &&
+          hasValidParentUser(userId);
+
+        // Follow-up Coach Messages Subcollection
+        match /messages/{messageId} {
+          allow get: if isValidId(userId) && isValidId(checkinId) && isValidId(messageId) &&
+            isOwner(userId) && hasValidParentCheckIn(userId, checkinId);
+          allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+          allow create: if isValidId(userId) && isValidId(checkinId) && isValidId(messageId) &&
+            isOwner(userId) &&
+            isValidCoachMessage(incoming()) &&
+            hasValidParentCheckIn(userId, checkinId) &&
+            incoming().createdAt == request.time;
+          allow update: if false;
+          allow delete: if isValidId(userId) && isValidId(checkinId) && isValidId(messageId) &&
+            isOwner(userId) &&
+            hasValidParentCheckIn(userId, checkinId);
+        }
+      }
+
+      // Physio Consults Subcollection (Intake, Monthly Check-ins, On-Demand)
+      match /physioConsults/{consultId} {
+        allow get: if isValidId(userId) && isValidId(consultId) && isOwner(userId) && hasValidParentUser(userId);
+        allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+        allow create: if isValidId(userId) && isValidId(consultId) &&
+          isOwner(userId) &&
+          isValidPhysioConsult(incoming()) &&
+          hasValidParentUser(userId) &&
+          incoming().createdAt == request.time;
+        allow update: if false;
+        allow delete: if isValidId(userId) && isValidId(consultId) &&
+          isOwner(userId) &&
+          hasValidParentUser(userId);
+      }
+    }
+  }
+}

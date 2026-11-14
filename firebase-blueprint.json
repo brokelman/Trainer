@@ -1,0 +1,542 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Athlete baseline physiology, treadmill limits, injury sensitivities, and learned Strava history summary.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Athlete display name.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "maxHr": {
+          "type": "number",
+          "description": "Maximum heart rate in bpm."
+        },
+        "restingHr": {
+          "type": "number",
+          "description": "Resting heart rate in bpm."
+        },
+        "treadmillMaxSpeedKmh": {
+          "type": "number",
+          "description": "Maximum speed on user's treadmill in km/h."
+        },
+        "treadmillMaxInclinePct": {
+          "type": "number",
+          "description": "Maximum incline percentage on user's treadmill."
+        },
+        "sensitiveAreas": {
+          "type": "string",
+          "description": "Known injury-prone or sensitive anatomical areas.",
+          "maxLength": 500
+        },
+        "stravaBaselineSummary": {
+          "type": "string",
+          "description": "AI/statistical baseline summary extracted from one-time Strava archive upload.",
+          "maxLength": 4000
+        },
+        "stravaImportedCount": {
+          "type": "number",
+          "description": "Total number of historical Strava activities analyzed."
+        },
+        "stravaLastImportedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last Strava import.",
+          "maxLength": 40
+        },
+        "intakeCompleted": {
+          "type": "boolean",
+          "description": "Whether initial Dorien Janse physio intake is completed."
+        },
+        "fitnessLevel": {
+          "type": "string",
+          "enum": ["beginner", "recreational", "intermediate", "advanced"],
+          "description": "Self-reported current running fitness level."
+        },
+        "currentWeeklyKm": {
+          "type": "number",
+          "description": "Current weekly running distance in km."
+        },
+        "currentComplaints": {
+          "type": "string",
+          "description": "Current physical complaints or pain points.",
+          "maxLength": 1000
+        },
+        "complaintSeverity": {
+          "type": "number",
+          "description": "Current pain/complaint severity (0-10)."
+        },
+        "physioPlanSummary": {
+          "type": "string",
+          "description": "AI physio Dorien Janse overall rehabilitation and build-up plan.",
+          "maxLength": 4000
+        },
+        "referralRecommended": {
+          "type": "boolean",
+          "description": "Whether an in-person referral to Dorien Janse at dorienjanse.nl is recommended."
+        },
+        "referralReason": {
+          "type": "string",
+          "description": "Clinical reason for recommending an in-person appointment at dorienjanse.nl.",
+          "maxLength": 1000
+        },
+        "lastPhysioCheckinAt": {
+          "type": "string",
+          "description": "ISO date of last monthly physio check-in.",
+          "maxLength": 40
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last update timestamp."
+        }
+      },
+      "required": [
+        "userId",
+        "displayName",
+        "maxHr",
+        "restingHr",
+        "treadmillMaxSpeedKmh",
+        "treadmillMaxInclinePct",
+        "sensitiveAreas",
+        "stravaBaselineSummary",
+        "stravaImportedCount",
+        "stravaLastImportedAt",
+        "intakeCompleted",
+        "fitnessLevel",
+        "currentWeeklyKm",
+        "currentComplaints",
+        "complaintSeverity",
+        "physioPlanSummary",
+        "referralRecommended",
+        "referralReason",
+        "lastPhysioCheckinAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "RunningGoal": {
+      "title": "RunningGoal",
+      "description": "Target race or distance/time objective (e.g., 10km or Half Marathon).",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 140
+        },
+        "location": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "distanceKm": {
+          "type": "number"
+        },
+        "raceDate": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 20
+        },
+        "targetTimeSeconds": {
+          "type": "number"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["A", "B"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "completed", "archived"]
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "title",
+        "location",
+        "distanceKm",
+        "raceDate",
+        "targetTimeSeconds",
+        "priority",
+        "status",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "TrainingActivity": {
+      "title": "TrainingActivity",
+      "description": "Imported Garmin/Strava run, treadmill workout, bootcamp session, or core/physio workout.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "source": {
+          "type": "string",
+          "enum": ["strava", "garmin", "bootcamp", "manual", "coach"]
+        },
+        "activityType": {
+          "type": "string",
+          "enum": ["run_outdoor", "run_treadmill", "bootcamp", "core_physio", "cross_train"]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180
+        },
+        "date": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 40
+        },
+        "durationMinutes": {
+          "type": "number"
+        },
+        "distanceKm": {
+          "type": "number"
+        },
+        "avgPaceSecPerKm": {
+          "type": "number"
+        },
+        "avgHr": {
+          "type": "number"
+        },
+        "maxHr": {
+          "type": "number"
+        },
+        "elevationGainM": {
+          "type": "number"
+        },
+        "inclinePct": {
+          "type": "number"
+        },
+        "rpe": {
+          "type": "number"
+        },
+        "trainingLoad": {
+          "type": "number"
+        },
+        "bootcampFocus": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "sorenessNote": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "externalId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "source",
+        "activityType",
+        "title",
+        "date",
+        "durationMinutes",
+        "distanceKm",
+        "avgPaceSecPerKm",
+        "avgHr",
+        "maxHr",
+        "elevationGainM",
+        "inclinePct",
+        "rpe",
+        "trainingLoad",
+        "bootcampFocus",
+        "sorenessNote",
+        "externalId",
+        "createdAt"
+      ]
+    },
+    "DailyCheckIn": {
+      "title": "DailyCheckIn",
+      "description": "Daily availability, indoor/outdoor constraint, physio check-in, and dynamic AI coach prescription.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "date": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 20
+        },
+        "wantsToTrain": {
+          "type": "boolean"
+        },
+        "environment": {
+          "type": "string",
+          "enum": ["outdoor", "indoor_treadmill", "indoor_core", "rest"]
+        },
+        "availableMinutes": {
+          "type": "number"
+        },
+        "energyLevel": {
+          "type": "number"
+        },
+        "muscleSoreness": {
+          "type": "number"
+        },
+        "painArea": {
+          "type": "string",
+          "maxLength": 140
+        },
+        "painSeverity": {
+          "type": "number"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "coachPlanTitle": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "coachPlanType": {
+          "type": "string",
+          "enum": ["easy_run", "tempo_run", "intervals", "long_run", "treadmill_incline", "core_physio", "rest_recovery"]
+        },
+        "coachReasoning": {
+          "type": "string",
+          "maxLength": 2500
+        },
+        "physioAdvice": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "workoutWarmup": {
+          "type": "string",
+          "maxLength": 1500
+        },
+        "workoutMain": {
+          "type": "string",
+          "maxLength": 2500
+        },
+        "workoutCooldown": {
+          "type": "string",
+          "maxLength": 1500
+        },
+        "treadmillSpeedKmh": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "treadmillInclinePct": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "targetHrZone": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "estimatedLoad": {
+          "type": "number"
+        },
+        "completed": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "date",
+        "wantsToTrain",
+        "environment",
+        "availableMinutes",
+        "energyLevel",
+        "muscleSoreness",
+        "painArea",
+        "painSeverity",
+        "notes",
+        "coachPlanTitle",
+        "coachPlanType",
+        "coachReasoning",
+        "physioAdvice",
+        "workoutWarmup",
+        "workoutMain",
+        "workoutCooldown",
+        "treadmillSpeedKmh",
+        "treadmillInclinePct",
+        "targetHrZone",
+        "estimatedLoad",
+        "completed",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CoachMessage": {
+      "title": "CoachMessage",
+      "description": "Interactive follow-up message between athlete and AI running coach / physiotherapist.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["user", "coach"]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 3500
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "role",
+        "text",
+        "createdAt"
+      ]
+    },
+    "PhysioConsult": {
+      "title": "PhysioConsult",
+      "description": "AI physiotherapist Dorien Janse intake, monthly check-in, or on-demand consultation record.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["intake", "monthly_checkin", "ondemand_consult"]
+        },
+        "date": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 20
+        },
+        "complaintsSummary": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "painSeverity": {
+          "type": "number"
+        },
+        "userQuestion": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "physioResponse": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "planRecommendations": {
+          "type": "string",
+          "maxLength": 3000
+        },
+        "referralRecommended": {
+          "type": "boolean"
+        },
+        "referralReason": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "kind",
+        "date",
+        "complaintsSummary",
+        "painSeverity",
+        "userQuestion",
+        "physioResponse",
+        "planRecommendations",
+        "referralRecommended",
+        "referralReason",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Athlete profile, heart rate settings, treadmill limits, Strava baseline, and Dorien Janse physio intake plan."
+    },
+    "/users/{userId}/goals/{goalId}": {
+      "schema": { "$ref": "#/entities/RunningGoal" },
+      "description": "User running goals (e.g., race distance, date, target time)."
+    },
+    "/users/{userId}/activities/{activityId}": {
+      "schema": { "$ref": "#/entities/TrainingActivity" },
+      "description": "Training activities imported from Strava, Garmin, Bootcamp, or Coach."
+    },
+    "/users/{userId}/checkins/{checkinId}": {
+      "schema": { "$ref": "#/entities/DailyCheckIn" },
+      "description": "Daily training readiness check-in and AI coach + physio workout prescription."
+    },
+    "/users/{userId}/checkins/{checkinId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/CoachMessage" },
+      "description": "Follow-up chat messages attached to a daily check-in."
+    },
+    "/users/{userId}/physioConsults/{consultId}": {
+      "schema": { "$ref": "#/entities/PhysioConsult" },
+      "description": "Dorien Janse AI physio intake, monthly check-in, and on-demand consult records."
+    }
+  }
+}
