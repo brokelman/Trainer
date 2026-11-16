@@ -7,8 +7,9 @@
 4. A training activity `/users/{userId}/activities/{activityId}` cannot exist without a verified parent `/users/{userId}` document owned by `request.auth.uid`, and `trainingLoad`, `durationMinutes`, and `rpe` must stay within valid physiological bounds.
 5. A daily check-in `/users/{userId}/checkins/{checkinId}` cannot exceed 60 minutes (`availableMinutes <= 60`) when `environment` is `'indoor_treadmill'` or `'indoor_core'`. Once `completed == true`, the prescribed plan fields are locked.
 6. Coach follow-up messages `/users/{userId}/checkins/{checkinId}/messages/{messageId}` require the parent check-in document to exist and belong to `request.auth.uid`, and messages are append-only (`update` forbidden).
-7. Physio consults `/users/{userId}/physioConsults/{consultId}` (intake, monthly check-ins, and on-demand consults with AI Dorien Janse) require a verified parent `/users/{userId}` document and are append-only (`update` forbidden).
-8. Unverified email tokens (`email_verified != true`), arbitrary shadow fields, oversized strings, and non-matching document IDs are unconditionally denied.
+7. Physio consults `/users/{userId}/physioConsults/{consultId}` require a verified parent `/users/{userId}` document and are append-only (`update` forbidden).
+8. User access & subscription records `/userAccess/{accessId}` can only be created, listed, or deleted by the verified Super User (`request.auth.token.email_verified == true && request.auth.token.email == 'brokelman@gmail.com'`). A regular verified user may only `get` their own access document (`resource == null || resource.data.email == request.auth.token.email`) and may only `update` `['lastLoginAt', 'displayName', 'updatedAt']` on their own existing record without altering `role`, `accessStatus`, `hasPaidSubscription`, `trialStartDate`, `trialEndsAt`, or `paidUntil`.
+9. Unverified email tokens (`email_verified != true`), arbitrary shadow fields, oversized strings, and non-matching document IDs are unconditionally denied.
 
 ## 2. The "Dirty Dozen" Adversarial Payloads (Expected: PERMISSION_DENIED)
 1. **Unauthenticated read**: `GET /users/uid_123` with `auth == null` -> `PERMISSION_DENIED`.
@@ -21,5 +22,5 @@
 8. **Immutable field tampering**: `UPDATE /users/uid_123/goals/g1` changing `createdAt` or `userId` -> `PERMISSION_DENIED`.
 9. **Terminal state bypass**: `UPDATE /users/uid_123/goals/g1` where existing `status == 'archived'` -> `PERMISSION_DENIED`.
 10. **Indoor 60-min invariant breach**: `CREATE /users/uid_123/checkins/2026-11-13` with `environment: "indoor_treadmill"` and `availableMinutes: 90` -> `PERMISSION_DENIED`.
-11. **Oversized string payload (DoW)**: `CREATE /users/uid_123/checkins/2026-11-13/messages/m1` with `text` > 3500 chars -> `PERMISSION_DENIED`.
-12. **Blanket list query across users**: `LIST /users/uid_other/activities` authenticated as `uid_123` -> `PERMISSION_DENIED`.
+11. **Non-admin user access escalation**: `CREATE /userAccess/attacker_at_test_dot_com` or `UPDATE /userAccess/member_at_test_dot_com` changing `hasPaidSubscription: true` by a non-superadmin user -> `PERMISSION_DENIED`.
+12. **Cross-user access record read/list**: `LIST /userAccess` or `GET /userAccess/other_at_test_dot_com` authenticated as a non-superadmin user -> `PERMISSION_DENIED`.

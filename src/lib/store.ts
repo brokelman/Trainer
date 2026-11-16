@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import type {
+  AccessEvaluation,
   CoachMessage,
   DailyCheckIn,
   FitnessLevel,
@@ -21,8 +22,107 @@ import type {
   PhysioConsultKind,
   RunningGoal,
   TrainingActivity,
+  UserAccessRecord,
+  UserAccessStatus,
   UserProfile,
 } from '../types';
+
+export const SUPERADMIN_EMAIL = 'brokelman@gmail.com';
+
+export function isSuperAdminEmail(email?: string | null): boolean {
+  return Boolean(email && email.trim().toLowerCase() === SUPERADMIN_EMAIL);
+}
+
+export function emailToAccessId(email: string): string {
+  const clean = email.trim().toLowerCase();
+  const slug = clean
+    .replace(/@/g, '_at_')
+    .replace(/\./g, '_dot_')
+    .replace(/[^a-z0-9_-]/g, '_');
+  return slug.slice(0, 120) || 'unknown_user';
+}
+
+export function addThreeMonthsIso(startIso: string): string {
+  const base = startIso ? new Date(`${startIso.slice(0, 10)}T12:00:00Z`) : new Date();
+  if (Number.isNaN(base.getTime())) {
+    const fallback = new Date(Date.now() + 90 * 86400000);
+    return fallback.toISOString().slice(0, 10);
+  }
+  base.setUTCMonth(base.getUTCMonth() + 3);
+  return base.toISOString().slice(0, 10);
+}
+
+export function evaluateUserAccess(
+  email: string | null | undefined,
+  record: UserAccessRecord | null,
+  todayIso: string
+): AccessEvaluation {
+  if (isSuperAdminEmail(email)) {
+    return {
+      allowed: true,
+      state: 'allowed_superadmin',
+      isSuperAdmin: true,
+      trialDaysRemaining: 9999,
+      record,
+    };
+  }
+
+  if (!record) {
+    return {
+      allowed: false,
+      state: 'denied_not_invited',
+      isSuperAdmin: false,
+      trialDaysRemaining: 0,
+      record: null,
+    };
+  }
+
+  if (record.accessStatus === 'revoked') {
+    return {
+      allowed: false,
+      state: 'denied_revoked',
+      isSuperAdmin: false,
+      trialDaysRemaining: 0,
+      record,
+    };
+  }
+
+  const todayMs = new Date(`${todayIso.slice(0, 10)}T00:00:00Z`).getTime();
+  const trialEndMs = new Date(`${(record.trialEndsAt || todayIso).slice(0, 10)}T23:59:59Z`).getTime();
+  const trialDaysRemaining = Math.max(0, Math.ceil((trialEndMs - todayMs) / 86400000));
+
+  const paidValid =
+    record.hasPaidSubscription &&
+    (!record.paidUntil || record.paidUntil.slice(0, 10) >= todayIso.slice(0, 10));
+
+  if (paidValid) {
+    return {
+      allowed: true,
+      state: 'allowed_paid',
+      isSuperAdmin: false,
+      trialDaysRemaining,
+      record,
+    };
+  }
+
+  if (record.trialEndsAt.slice(0, 10) >= todayIso.slice(0, 10)) {
+    return {
+      allowed: true,
+      state: 'allowed_trial',
+      isSuperAdmin: false,
+      trialDaysRemaining,
+      record,
+    };
+  }
+
+  return {
+    allowed: false,
+    state: 'denied_trial_expired',
+    isSuperAdmin: false,
+    trialDaysRemaining: 0,
+    record,
+  };
+}
 
 function assertActiveUser(uid: string): void {
   if (!uid || !auth.currentUser || auth.currentUser.uid !== uid) {
@@ -505,4 +605,178 @@ export async function addPhysioConsult(
     handleFirestoreError(err, OperationType.CREATE, path);
   }
 }
+
+export async function ensureSuperAdminAccessRecord(email: string, displayName: string): Promise<void> {
+  if (!isSuperAdminEmail(email)) return;
+  const normalizedEmail = email.trim().toLowerCase();
+  const accessId = emailToAccessId(normalizedEmail);
+  const path = `userAccess/${accessId}`;
+  const ref = doc(db, 'userAccess', accessId);
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      await setDoc(ref, {
+        email: normalizedEmail,
+        displayName: (displayName || 'Super Admin').slice(0, 120),
+        role: 'superadmin',
+        accessStatus: 'active',
+        hasPaidSubscription: true,
+        trialStartDate: today,
+        trialEndsAt: '2099-12-31',
+        paidUntil: '2099-12-31',
+        notes: 'Super User account — altijd en overal toegang',
+        lastLoginAt: new Date().toISOString().slice(0, 40),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      await updateDoc(ref, {
+        lastLoginAt: new Date().toISOString().slice(0, 40),
+        displayName: (displayName || snap.data()?.displayName || 'Super Admin').slice(0, 120),
+        updatedAt: serverTimestamp(),
+      });
+    }
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, path);
+  }
+}
+
+export async function recordMemberLoginIfAuthorized(email: string, displayName: string): Promise<void> {
+  if (!email) return;
+  const normalizedEmail = email.trim().toLowerCase();
+  if (isSuperAdminEmail(normalizedEmail)) {
+    await ensureSuperAdminAccessRecord(normalizedEmail, displayName);
+    return;
+  }
+  const accessId = emailToAccessId(normalizedEmail);
+  const path = `userAccess/${accessId}`;
+  const ref = doc(db, 'userAccess', accessId);
+  try {
+    const snap = await getDoc(ref);
+    if (snap.exists() && snap.data()?.email === normalizedEmail) {
+      await updateDoc(ref, {
+        lastLoginAt: new Date().toISOString().slice(0, 40),
+        displayName: (displayName || snap.data()?.displayName || 'Atleet').slice(0, 120),
+        updatedAt: serverTimestamp(),
+      });
+    }
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
+  }
+}
+
+export function subscribeMyAccessRecord(
+  email: string,
+  onData: (record: UserAccessRecord | null) => void
+) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const accessId = emailToAccessId(normalizedEmail);
+  const path = `userAccess/${accessId}`;
+  return onSnapshot(
+    doc(db, 'userAccess', accessId),
+    (snap) => {
+      if (!snap.exists()) {
+        onData(null);
+        return;
+      }
+      const data = { id: snap.id, ...(snap.data() as Omit<UserAccessRecord, 'id'>) };
+      onData(data.email === normalizedEmail ? data : null);
+    },
+    (err) => handleFirestoreError(err, OperationType.GET, path)
+  );
+}
+
+export function subscribeAllUserAccessRecords(
+  onData: (records: UserAccessRecord[]) => void
+) {
+  const path = 'userAccess';
+  const q = query(collection(db, 'userAccess'), orderBy('email', 'asc'));
+  return onSnapshot(
+    q,
+    (snap) => {
+      if (!isSuperAdminEmail(auth.currentUser?.email)) {
+        onData([]);
+        return;
+      }
+      onData(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<UserAccessRecord, 'id'>) })));
+    },
+    (err) => handleFirestoreError(err, OperationType.LIST, path)
+  );
+}
+
+export async function upsertUserAccessByAdmin(payload: {
+  email: string;
+  displayName: string;
+  accessStatus: UserAccessStatus;
+  hasPaidSubscription: boolean;
+  trialStartDate: string;
+  trialEndsAt: string;
+  paidUntil: string;
+  notes: string;
+}): Promise<void> {
+  if (!isSuperAdminEmail(auth.currentUser?.email)) {
+    throw new Error('Alleen de Super User (brokelman@gmail.com) kan gebruikerstoegang beheren.');
+  }
+  const normalizedEmail = payload.email.trim().toLowerCase();
+  if (!normalizedEmail || !normalizedEmail.includes('@') || normalizedEmail.length < 3) {
+    throw new Error('Voer een geldig e-mailadres in.');
+  }
+  const accessId = emailToAccessId(normalizedEmail);
+  const path = `userAccess/${accessId}`;
+  const ref = doc(db, 'userAccess', accessId);
+  const role = isSuperAdminEmail(normalizedEmail) ? 'superadmin' : 'member';
+  const safeStart = (payload.trialStartDate || new Date().toISOString().slice(0, 10)).slice(0, 20);
+  const safeEnd = (payload.trialEndsAt || addThreeMonthsIso(safeStart)).slice(0, 20);
+
+  try {
+    const existingSnap = await getDoc(ref);
+    if (existingSnap.exists()) {
+      await updateDoc(ref, {
+        displayName: (payload.displayName || existingSnap.data()?.displayName || normalizedEmail.split('@')[0]).slice(0, 120),
+        role,
+        accessStatus: isSuperAdminEmail(normalizedEmail) ? 'active' : payload.accessStatus,
+        hasPaidSubscription: isSuperAdminEmail(normalizedEmail) ? true : Boolean(payload.hasPaidSubscription),
+        trialStartDate: safeStart,
+        trialEndsAt: safeEnd,
+        paidUntil: (payload.paidUntil || '').slice(0, 20),
+        notes: (payload.notes || '').slice(0, 500),
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      await setDoc(ref, {
+        email: normalizedEmail.slice(0, 160),
+        displayName: (payload.displayName || normalizedEmail.split('@')[0] || 'Atleet').slice(0, 120),
+        role,
+        accessStatus: isSuperAdminEmail(normalizedEmail) ? 'active' : payload.accessStatus,
+        hasPaidSubscription: isSuperAdminEmail(normalizedEmail) ? true : Boolean(payload.hasPaidSubscription),
+        trialStartDate: safeStart,
+        trialEndsAt: safeEnd,
+        paidUntil: (payload.paidUntil || '').slice(0, 20),
+        notes: (payload.notes || '').slice(0, 500),
+        lastLoginAt: '',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, path);
+  }
+}
+
+export async function removeUserAccessByAdmin(accessId: string, email: string): Promise<void> {
+  if (!isSuperAdminEmail(auth.currentUser?.email)) {
+    throw new Error('Alleen de Super User kan gebruikers verwijderen.');
+  }
+  if (isSuperAdminEmail(email)) {
+    throw new Error('Het Super User account (brokelman@gmail.com) kan niet worden verwijderd.');
+  }
+  const path = `userAccess/${accessId}`;
+  try {
+    await deleteDoc(doc(db, 'userAccess', accessId));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
+  }
+}
+
 

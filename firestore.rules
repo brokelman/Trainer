@@ -23,6 +23,10 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.email_verified == true;
     }
 
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.token.email == 'brokelman@gmail.com';
+    }
+
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
@@ -218,6 +222,65 @@ service cloud.firestore {
         data.referralRecommended is bool &&
         data.referralReason is string && data.referralReason.size() <= 1000 &&
         data.createdAt is timestamp;
+    }
+
+    function isValidUserAccessRecord(data) {
+      return data.keys().hasAll([
+          'email', 'displayName', 'role', 'accessStatus',
+          'hasPaidSubscription', 'trialStartDate', 'trialEndsAt',
+          'paidUntil', 'notes', 'lastLoginAt', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'email', 'displayName', 'role', 'accessStatus',
+          'hasPaidSubscription', 'trialStartDate', 'trialEndsAt',
+          'paidUntil', 'notes', 'lastLoginAt', 'createdAt', 'updatedAt'
+        ]) &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120 &&
+        data.role is string && data.role in ['superadmin', 'member'] &&
+        data.accessStatus is string && data.accessStatus in ['active', 'revoked'] &&
+        data.hasPaidSubscription is bool &&
+        data.trialStartDate is string && data.trialStartDate.size() >= 8 && data.trialStartDate.size() <= 20 &&
+        data.trialEndsAt is string && data.trialEndsAt.size() >= 8 && data.trialEndsAt.size() <= 20 &&
+        data.paidUntil is string && data.paidUntil.size() <= 20 &&
+        data.notes is string && data.notes.size() <= 500 &&
+        data.lastLoginAt is string && data.lastLoginAt.size() <= 40 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // User Access & Subscription Administration Collection
+    match /userAccess/{accessId} {
+      allow get: if isValidId(accessId) && (
+        isSuperAdmin() ||
+        (isSignedIn() && (resource == null || resource.data.email == request.auth.token.email))
+      );
+      allow list: if isSuperAdmin() && resource.data.email is string;
+      allow create: if isValidId(accessId) &&
+        isSuperAdmin() &&
+        isValidUserAccessRecord(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(accessId) &&
+        isValidUserAccessRecord(incoming()) &&
+        incoming().email == existing().email &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isSuperAdmin() ||
+          (
+            isSignedIn() &&
+            existing().email == request.auth.token.email &&
+            incoming().role == existing().role &&
+            incoming().accessStatus == existing().accessStatus &&
+            incoming().hasPaidSubscription == existing().hasPaidSubscription &&
+            incoming().trialStartDate == existing().trialStartDate &&
+            incoming().trialEndsAt == existing().trialEndsAt &&
+            incoming().paidUntil == existing().paidUntil &&
+            incoming().notes == existing().notes &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['lastLoginAt', 'displayName', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(accessId) && isSuperAdmin();
     }
 
     // Users Collection

@@ -150,3 +150,38 @@ export interface LoadMetrics {
     runKm: number;
   }>;
 }
+
+export type UserRole = 'superadmin' | 'member';
+export type UserAccessStatus = 'active' | 'revoked';
+
+export interface UserAccessRecord {
+  id: string;
+  email: string;
+  displayName: string;
+  role: UserRole;
+  accessStatus: UserAccessStatus;
+  hasPaidSubscription: boolean;
+  trialStartDate: string;
+  trialEndsAt: string;
+  paidUntil: string;
+  notes: string;
+  lastLoginAt: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export type AccessGrantState =
+  | 'allowed_superadmin'
+  | 'allowed_trial'
+  | 'allowed_paid'
+  | 'denied_not_invited'
+  | 'denied_revoked'
+  | 'denied_trial_expired';
+
+export interface AccessEvaluation {
+  allowed: boolean;
+  state: AccessGrantState;
+  isSuperAdmin: boolean;
+  trialDaysRemaining: number;
+  record: UserAccessRecord | null;
+}

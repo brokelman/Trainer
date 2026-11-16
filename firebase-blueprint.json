@@ -511,12 +511,95 @@
         "referralReason",
         "createdAt"
       ]
+    },
+    "UserAccessRecord": {
+      "title": "UserAccessRecord",
+      "description": "Email-based user access authorization, 3-month free trial period, and paid subscription status managed by the Super User (brokelman@gmail.com).",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Normalized lowercase email address of the authorized user.",
+          "minLength": 3,
+          "maxLength": 160
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Name or label of the user.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "role": {
+          "type": "string",
+          "enum": ["superadmin", "member"],
+          "description": "Role of the user (superadmin for brokelman@gmail.com, member for invited users)."
+        },
+        "accessStatus": {
+          "type": "string",
+          "enum": ["active", "revoked"],
+          "description": "Whether the user is currently granted access or revoked by the superadmin."
+        },
+        "hasPaidSubscription": {
+          "type": "boolean",
+          "description": "Whether the user has paid for a subscription (required after the 3-month free trial)."
+        },
+        "trialStartDate": {
+          "type": "string",
+          "description": "ISO date (YYYY-MM-DD) when the 3-month free trial started.",
+          "minLength": 8,
+          "maxLength": 20
+        },
+        "trialEndsAt": {
+          "type": "string",
+          "description": "ISO date (YYYY-MM-DD) when the 3-month free trial ends.",
+          "minLength": 8,
+          "maxLength": 20
+        },
+        "paidUntil": {
+          "type": "string",
+          "description": "ISO date (YYYY-MM-DD) until which paid subscription is valid, or empty string.",
+          "maxLength": 20
+        },
+        "notes": {
+          "type": "string",
+          "description": "Admin notes regarding user access or billing.",
+          "maxLength": 500
+        },
+        "lastLoginAt": {
+          "type": "string",
+          "description": "ISO timestamp of the user's most recent login.",
+          "maxLength": 40
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "email",
+        "displayName",
+        "role",
+        "accessStatus",
+        "hasPaidSubscription",
+        "trialStartDate",
+        "trialEndsAt",
+        "paidUntil",
+        "notes",
+        "lastLoginAt",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/UserProfile" },
-      "description": "Athlete profile, heart rate settings, treadmill limits, Strava baseline, and Dorien Janse physio intake plan."
+      "description": "Athlete profile, heart rate settings, treadmill limits, Strava baseline, and AI physio intake plan."
     },
     "/users/{userId}/goals/{goalId}": {
       "schema": { "$ref": "#/entities/RunningGoal" },
@@ -536,7 +619,11 @@
     },
     "/users/{userId}/physioConsults/{consultId}": {
       "schema": { "$ref": "#/entities/PhysioConsult" },
-      "description": "Dorien Janse AI physio intake, monthly check-in, and on-demand consult records."
+      "description": "AI physio intake, monthly check-in, and on-demand consult records."
+    },
+    "/userAccess/{accessId}": {
+      "schema": { "$ref": "#/entities/UserAccessRecord" },
+      "description": "Email-based access control, 3-month free trial, and subscription administration managed by superuser brokelman@gmail.com."
     }
   }
 }

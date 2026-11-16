@@ -1,28 +1,56 @@
 import { useEffect, useMemo, useState } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { Activity, ArrowRight, CalendarCheck, Database, Flag, ListChecks, LogOut, Menu, Stethoscope, X } from 'lucide-react';
+import {
+  Activity,
+  ArrowRight,
+  CalendarCheck,
+  Database,
+  Flag,
+  ListChecks,
+  Lock,
+  LogOut,
+  Menu,
+  ShieldCheck,
+  Stethoscope,
+  Users,
+  X,
+} from 'lucide-react';
 import { auth, loginWithGoogle, logoutUser, testFirestoreConnection } from './lib/firebase';
 import {
   ensureUserProfile,
+  evaluateUserAccess,
+  isSuperAdminEmail,
+  recordMemberLoginIfAuthorized,
   subscribeActivities,
+  subscribeAllUserAccessRecords,
   subscribeCheckIn,
   subscribeCheckInMessages,
   subscribeGoals,
+  subscribeMyAccessRecord,
   subscribePhysioConsults,
   subscribeProfile,
 } from './lib/store';
 import { computeLoadMetrics, todayIsoDate } from './lib/trainingMath';
-import type { CoachMessage, DailyCheckIn, PhysioConsult, RunningGoal, TrainingActivity, UserProfile } from './types';
+import type {
+  CoachMessage,
+  DailyCheckIn,
+  PhysioConsult,
+  RunningGoal,
+  TrainingActivity,
+  UserAccessRecord,
+  UserProfile,
+} from './types';
 import { TodayCoachView } from './components/TodayCoachView';
 import { GoalsView } from './components/GoalsView';
 import { DataImportView } from './components/DataImportView';
 import { LoadPhysioView } from './components/LoadPhysioView';
 import { ActivityLogView } from './components/ActivityLogView';
 import { PhysioDorienView } from './components/PhysioDorienView';
+import { UserAdminView } from './components/UserAdminView';
 
-type TabKey = 'today' | 'physio' | 'goals' | 'import' | 'load' | 'log';
+type TabKey = 'today' | 'physio' | 'goals' | 'import' | 'load' | 'log' | 'admin';
 
-const NAV_ITEMS: Array<{ key: TabKey; label: string; icon: typeof CalendarCheck }> = [
+const BASE_NAV_ITEMS: Array<{ key: TabKey; label: string; icon: typeof CalendarCheck }> = [
   { key: 'today', label: 'Vandaag & Coach', icon: CalendarCheck },
   { key: 'physio', label: 'AI Fysio & Intake', icon: Stethoscope },
   { key: 'goals', label: 'Doelen & Profiel', icon: Flag },
@@ -38,6 +66,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('today');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const [myAccessRecord, setMyAccessRecord] = useState<UserAccessRecord | null>(null);
+  const [accessChecked, setAccessChecked] = useState(false);
+  const [allAccessRecords, setAllAccessRecords] = useState<UserAccessRecord[]>([]);
+
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [goals, setGoals] = useState<RunningGoal[]>([]);
   const [activities, setActivities] = useState<TrainingActivity[]>([]);
@@ -47,6 +79,17 @@ export default function App() {
   const [initialRouted, setInitialRouted] = useState(false);
 
   const today = todayIsoDate();
+  const isSuperAdmin = isSuperAdminEmail(user?.email);
+
+  const navItems = useMemo(() => {
+    if (isSuperAdmin) {
+      return [
+        ...BASE_NAV_ITEMS,
+        { key: 'admin' as TabKey, label: 'Gebruikersbeheer', icon: Users },
+      ];
+    }
+    return BASE_NAV_ITEMS;
+  }, [isSuperAdmin]);
 
   useEffect(() => {
     testFirestoreConnection();
@@ -58,6 +101,9 @@ export default function App() {
       setTodayCheckIn(null);
       setMessages([]);
       setPhysioConsults([]);
+      setMyAccessRecord(null);
+      setAllAccessRecords([]);
+      setAccessChecked(isSuperAdminEmail(u?.email));
       setAuthError(null);
       setUser(u);
       setAuthReady(true);
@@ -66,8 +112,50 @@ export default function App() {
     return () => unsub();
   }, []);
 
+  // Subscribe to access record (and all records if Super User brokelman@gmail.com)
   useEffect(() => {
-    // Always clear state before subscribing to a user's personal collections
+    if (!authReady || !user || !user.email) {
+      setMyAccessRecord(null);
+      setAllAccessRecords([]);
+      setAccessChecked(false);
+      return;
+    }
+
+    const email = user.email;
+    const superUser = isSuperAdminEmail(email);
+    if (superUser) {
+      setAccessChecked(true);
+    }
+
+    const unsubs: Array<() => void> = [];
+
+    recordMemberLoginIfAuthorized(email, user.displayName || 'Atleet').catch(() => {
+      // Non-fatal if user is not invited yet
+    });
+
+    unsubs.push(
+      subscribeMyAccessRecord(email, (rec) => {
+        setMyAccessRecord(rec);
+        setAccessChecked(true);
+      })
+    );
+
+    if (superUser) {
+      unsubs.push(subscribeAllUserAccessRecords(setAllAccessRecords));
+    }
+
+    return () => {
+      unsubs.forEach((fn) => fn());
+    };
+  }, [authReady, user]);
+
+  const accessEval = useMemo(
+    () => evaluateUserAccess(user?.email, myAccessRecord, today),
+    [user?.email, myAccessRecord, today]
+  );
+
+  // Subscribe to personal training & physio data ONLY when access is allowed
+  useEffect(() => {
     setProfile(null);
     setGoals([]);
     setActivities([]);
@@ -75,7 +163,7 @@ export default function App() {
     setMessages([]);
     setPhysioConsults([]);
 
-    if (!authReady || !user) {
+    if (!authReady || !user || !accessEval.allowed) {
       return;
     }
 
@@ -104,7 +192,7 @@ export default function App() {
       cancelled = true;
       unsubs.forEach((fn) => fn());
     };
-  }, [authReady, user, today]);
+  }, [authReady, user, accessEval.allowed, today]);
 
   const scopedProfile = useMemo(
     () => (user && profile && profile.userId === user.uid ? profile : null),
@@ -154,10 +242,10 @@ export default function App() {
     }
   };
 
-  if (!authReady) {
+  if (!authReady || (user && !isSuperAdmin && !accessChecked)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC] text-slate-600 text-sm">
-        Gegevens laden...
+        Gegevens en toegangsrechten controleren...
       </div>
     );
   }
@@ -244,7 +332,84 @@ export default function App() {
     );
   }
 
-  const currentNav = NAV_ITEMS.find((n) => n.key === activeTab)!;
+  // Gate for users who are not authorized or whose 3-month free trial has expired without paid subscription
+  if (!accessEval.allowed) {
+    return (
+      <div className="min-h-screen bg-[#070B12] text-white flex items-center justify-center p-6">
+        <div className="w-full max-w-lg bg-[#0B101B] border border-white/15 rounded-xl p-8 space-y-6">
+          <div className="flex items-center justify-between border-b border-white/10 pb-4">
+            <span className="font-display text-lg font-bold tracking-tight text-white">Run Coach</span>
+            <span className="text-xs font-mono text-slate-400">{user.email}</span>
+          </div>
+
+          <div className="space-y-3">
+            <div className="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+              <Lock className="w-5 h-5" />
+            </div>
+
+            {accessEval.state === 'denied_not_invited' && (
+              <>
+                <h1 className="text-xl font-semibold text-white">
+                  Nog geen toegang gekoppeld aan dit e-mailadres
+                </h1>
+                <p className="text-sm text-slate-300 leading-relaxed">
+                  Je bent ingelogd met <strong className="text-white font-mono">{user.email}</strong>. Toegang tot Run
+                  Coach wordt op uitnodiging verleend op basis van je e-mailadres (met de eerste 3 maanden gratis).
+                </p>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Vraag de beheerder om <span className="font-mono text-slate-200">{user.email}</span> toe te voegen in
+                  het Gebruikersbeheer, of log in met een ander Google-account.
+                </p>
+              </>
+            )}
+
+            {accessEval.state === 'denied_trial_expired' && (
+              <>
+                <h1 className="text-xl font-semibold text-white">
+                  Je gratis proefperiode van 3 maanden is afgelopen
+                </h1>
+                <p className="text-sm text-slate-300 leading-relaxed">
+                  De eerste 3 maanden gratis toegang voor{' '}
+                  <strong className="text-white font-mono">{user.email}</strong> liepen van{' '}
+                  <span className="font-mono text-white">{accessEval.record?.trialStartDate}</span> t/m{' '}
+                  <span className="font-mono text-white">{accessEval.record?.trialEndsAt}</span>.
+                </p>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Om verder gebruik te maken van je persoonlijke trainingsschema&apos;s en AI-fysiobegeleiding is een
+                  betaald abonnement vereist. Neem contact op met de beheerder om je abonnement te activeren.
+                </p>
+              </>
+            )}
+
+            {accessEval.state === 'denied_revoked' && (
+              <>
+                <h1 className="text-xl font-semibold text-white">
+                  Toegang voor dit account is gepauzeerd
+                </h1>
+                <p className="text-sm text-slate-300 leading-relaxed">
+                  De toegang voor <strong className="text-white font-mono">{user.email}</strong> is momenteel
+                  gepauzeerd door de beheerder.
+                </p>
+              </>
+            )}
+          </div>
+
+          <div className="pt-2 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={logoutUser}
+              className="px-4 py-2.5 bg-white hover:bg-slate-200 text-slate-950 text-xs font-semibold rounded-lg flex items-center gap-2 transition-colors whitespace-nowrap"
+            >
+              <LogOut className="w-4 h-4" />
+              Uitloggen / Ander account kiezen
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const currentNav = navItems.find((n) => n.key === activeTab) || navItems[0];
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col lg:flex-row">
@@ -258,7 +423,7 @@ export default function App() {
           </div>
 
           <nav className="space-y-1" aria-label="Hoofdnavigatie">
-            {NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const Icon = item.icon;
               const active = activeTab === item.key;
               return (
@@ -281,9 +446,26 @@ export default function App() {
         </div>
 
         <div className="border-t border-slate-100 pt-4 space-y-3">
-          <div className="px-2">
-            <p className="text-xs font-medium text-slate-900 truncate">{scopedProfile?.displayName || user.displayName || 'Atleet'}</p>
+          <div className="px-2 space-y-0.5">
+            <p className="text-xs font-medium text-slate-900 truncate">
+              {scopedProfile?.displayName || user.displayName || 'Atleet'}
+            </p>
             <p className="text-xs text-slate-500 truncate">{user.email}</p>
+            {isSuperAdmin && (
+              <p className="text-[11px] font-medium text-emerald-700 flex items-center gap-1 pt-0.5">
+                <ShieldCheck className="w-3.5 h-3.5" /> Super User
+              </p>
+            )}
+            {!isSuperAdmin && accessEval.state === 'allowed_trial' && (
+              <p className="text-[11px] font-mono text-emerald-700 pt-0.5">
+                Gratis proef: nog {accessEval.trialDaysRemaining} dgn
+              </p>
+            )}
+            {!isSuperAdmin && accessEval.state === 'allowed_paid' && (
+              <p className="text-[11px] font-mono text-slate-600 pt-0.5">
+                Abonnement actief
+              </p>
+            )}
           </div>
           <button
             type="button"
@@ -346,6 +528,15 @@ export default function App() {
             >
               Belasting
             </button>
+            {isSuperAdmin && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('admin')}
+                className={`hover:text-slate-900 whitespace-nowrap shrink-0 ${activeTab === 'admin' ? 'text-slate-900 font-medium underline underline-offset-4' : ''}`}
+              >
+                Gebruikersbeheer
+              </button>
+            )}
           </div>
 
           <div className="shrink-0">
@@ -362,7 +553,7 @@ export default function App() {
         {/* Mobile drawer */}
         {mobileMenuOpen && (
           <div className="lg:hidden bg-white border-b border-slate-200 px-4 py-3 space-y-1">
-            {NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const Icon = item.icon;
               return (
                 <button
@@ -445,6 +636,10 @@ export default function App() {
               activities={scopedActivities}
               onNavigateToImport={() => setActiveTab('import')}
             />
+          )}
+
+          {activeTab === 'admin' && isSuperAdmin && (
+            <UserAdminView records={allAccessRecords} />
           )}
         </main>
       </div>
